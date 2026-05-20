@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Downloader v12</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+<style>
+/* ── Reset & Variables ─────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── DARK THEME (default) ─────────────────────────────────────────────── */
+:root,
+[data-theme="dark"] {
+  --bg:          #0d0d14;
+  --bg2:         #13131e;
+  --bg3:         #1a1a2a;
+  --bg4:         #22223a;
+  --border:      #2a2a44;
+  --border2:     #35355a;
+  --text:        #e2e2f0;
+  --text2:       #9191b0;
+  --text3:       #5a5a7a;
+  --accent:      #6c63ff;
+  --accent2:     #8b83ff;
+  --accent-glow: rgba(108,99,255,.25);
+  --green:       #22c55e;
+  --green-dim:   rgba(34,197,94,.15);
+  --yellow:      #eab308;
+  --yellow-dim:  rgba(234,179,8,.15);
+  --red:         #ef4444;
+  --red-dim:     rgba(239,68,68,.15);
+  --cyan:        #22d3ee;
+  --cyan-dim:    rgba(34,211,238,.15);
+  --gray:        #6b7280;
+  --gray-dim:    rgba(107,114,128,.12);
+  --shadow:      rgba(0,0,0,.4);
+  --input-bg:    var(--bg3);
+  --theme-icon:  '☀️';
+}
+
+/* ── LIGHT THEME ──────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg:          #f0f0f8;
+  --bg2:         #ffffff;
+  --bg3:         #f5f5fc;
+  --bg4:         #eaeaf5;
+  --border:      #d8d8ec;
+  --border2:     #c5c5e0;
+  --text:        #1a1a2e;
+  --text2:       #44445a;
+  --text3:       #8888a8;
+  --accent:      #5b52e8;
+  --accent2:     #7068f0;
+  --accent-glow: rgba(91,82,232,.18);
+  --green:       #16a34a;
+  --green-dim:   rgba(22,163,74,.12);
+  --yellow:      #b45309;
+  --yellow-dim:  rgba(180,83,9,.12);
+  --red:         #dc2626;
+  --red-dim:     rgba(220,38,38,.12);
+  --cyan:        #0891b2;
+  --cyan-dim:    rgba(8,145,178,.12);
+  --gray:        #6b7280;
+  --gray-dim:    rgba(107,114,128,.1);
+  --shadow:      rgba(0,0,0,.12);
+  --input-bg:    #ffffff;
+  --theme-icon:  '🌙';
+}
+
+:root {
+  --radius:   10px;
+  --radius-sm: 6px;
+  --transition: .18s ease;
+  --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  transition: background .25s, color .25s;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+
+#app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+/* ── Header ────────────────────────────────────────────────────────────── */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px; height: 56px; background: var(--bg2);
+  border-bottom: 1px solid var(--border); flex-shrink: 0; gap: 12px;
+  transition: background .25s, border-color .25s;
+}
+.logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; letter-spacing: .01em; }
+.logo-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent), #a855f7);
+  display: flex; align-items: center; justify-content: center; font-size: 16px;
+  box-shadow: 0 0 16px var(--accent-glow);
+}
+.logo span { color: var(--text2); font-weight: 400; }
+
+.header-right { display: flex; align-items: center; gap: 10px; }
+
+/* ── Theme Toggle ─────────────────────────────────────────────────────── */
+.theme-toggle {
+  width: 36px; height: 36px; border-radius: 8px;
+  background: var(--bg3); border: 1px solid var(--border);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 17px; transition: var(--transition); flex-shrink: 0;
+  line-height: 1;
+}
+.theme-toggle:hover { border-color: var(--accent); background: var(--bg4); }
+
+.conn-pill {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 99px;
+  background: var(--bg3); border: 1px solid var(--border);
+  font-size: 12px; color: var(--text2); transition: var(--transition);
+}
+.conn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gray); transition: var(--transition); }
+.conn-pill.connected    .conn-dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.conn-pill.connecting   .conn-dot { background: var(--yellow); animation: pulse 1s infinite; }
+.conn-pill.disconnected .conn-dot { background: var(--red); }
+
+@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.3 } }
+
+/* ── Layout ────────────────────────────────────────────────────────────── */
+.body { display: flex; flex: 1; overflow: hidden; }
+
+/* ── Sidebar ───────────────────────────────────────────────────────────── */
+.sidebar {
+  width: 340px; min-width: 280px; flex-shrink: 0;
+  background: var(--bg2); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow-y: auto;
+  transition: background .25s, border-color .25s;
+}
+.sidebar-inner { padding: 20px; flex: 1; display: flex; flex-direction: column; gap: 20px; }
+
+.section-title {
+  font-size: 11px; font-weight: 600; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text3); margin-bottom: 2px;
+}
+
+input[type="text"], input[type="url"], input[type="number"], select {
+  background: var(--input-bg); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text);
+  padding: 8px 12px; font-size: 13px; width: 100%;
+  outline: none; transition: border-color var(--transition), box-shadow var(--transition), background .25s;
+  font-family: inherit; -webkit-appearance: none; appearance: none;
+}
+input::placeholder { color: var(--text3); }
+input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236b7280' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px;
+}
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 12px; font-weight: 500; color: var(--text2); }
+.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.ext-group { display: flex; flex-wrap: wrap; gap: 6px; }
+.ext-chip {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 99px;
+  border: 1px solid var(--border); background: var(--bg3);
+  font-size: 12px; color: var(--text2); cursor: pointer;
+  transition: var(--transition); user-select: none;
+}
+.ext-chip input { display: none; }
+.ext-chip:has(input:checked) { border-color: var(--accent); background: var(--accent-glow); color: var(--accent2); }
+.ext-chip:hover { border-color: var(--border2); }
+
+details summary {
+  cursor: pointer; font-size: 12px; color: var(--text3);
+  display: flex; align-items: center; gap: 6px;
+  list-style: none; user-select: none; transition: color var(--transition);
+}
+details summary::before { content: '▸'; transition: transform var(--transition); font-size: 10px; }
+details[open] summary::before { transform: rotate(90deg); }
+details summary:hover { color: var(--text2); }
+.details-body { display: flex; flex-direction: column; gap: 12px; padding-top: 10px; }
+
+/* ── Buttons ───────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 10px 18px; border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  border: 1px solid transparent; transition: var(--transition); white-space: nowrap;
+}
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 0 16px var(--accent-glow); }
+.btn-primary:not(:disabled):hover { background: var(--accent2); box-shadow: 0 0 24px var(--accent-glow); }
+.btn-danger { background: var(--bg3); color: var(--red); border-color: var(--red-dim); }
+.btn-danger:not(:disabled):hover { background: var(--red-dim); }
+.btn-download { background: var(--green-dim); color: var(--green); border-color: rgba(34,197,94,.3); }
+.btn-download:not(:disabled):hover { background: rgba(34,197,94,.25); }
+.btn-ghost { background: var(--bg3); color: var(--text2); border-color: var(--border); }
+.btn-ghost:not(:disabled):hover { border-color: var(--border2); color: var(--text); }
+.action-row { display: flex; gap: 8px; }
+.action-row .btn { flex: 1; }
+
+/* ── Main panel ────────────────────────────────────────────────────────── */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); transition: background .25s; }
+
+/* ── Stats bar ─────────────────────────────────────────────────────────── */
+.stats-bar {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.stat-card {
+  background: var(--bg2); padding: 14px 18px;
+  display: flex; flex-direction: column; gap: 2px;
+  transition: background .25s;
+}
+.stat-value {
+  font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums;
+  line-height: 1; transition: transform .15s;
+}
+.stat-value.bump { animation: statbump .25s ease; }
+@keyframes statbump { 0% { transform: scale(1) } 50% { transform: scale(1.18) } 100% { transform: scale(1) } }
+.stat-label { font-size: 11px; color: var(--text3); font-weight: 500; letter-spacing: .04em; text-transform: uppercase; }
+.stat-pages   .stat-value { color: var(--cyan); }
+.stat-saved   .stat-value { color: var(--green); }
+.stat-skipped .stat-value { color: var(--gray); }
+.stat-failed  .stat-value { color: var(--text2); }
+.stat-failed.has-failures .stat-value { color: var(--red); }
+
+/* ── Job bar ───────────────────────────────────────────────────────────── */
+.job-bar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 20px; background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px; color: var(--text3); flex-shrink: 0; min-height: 38px;
+  transition: background .25s, border-color .25s;
+}
+.job-badge { padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; letter-spacing: .04em; }
+.badge-running   { background: var(--cyan-dim);   color: var(--cyan);   border: 1px solid rgba(34,211,238,.3); }
+.badge-done      { background: var(--green-dim);  color: var(--green);  border: 1px solid rgba(34,197,94,.3); }
+.badge-cancelled { background: var(--yellow-dim); color: var(--yellow); border: 1px solid rgba(234,179,8,.3); }
+.badge-failed    { background: var(--red-dim);    color: var(--red);    border: 1px solid rgba(239,68,68,.3); }
+.job-url { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--border2); border-top-color: var(--accent); animation: spin .7s linear infinite; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg) } }
+
+/* ── Log feed ──────────────────────────────────────────────────────────── */
+.log-wrap { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+.log-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  background: var(--bg2); transition: background .25s, border-color .25s;
+}
+.log-title { font-size: 12px; font-weight: 600; color: var(--text2); letter-spacing: .04em; }
+.log-actions { display: flex; gap: 6px; }
+.log-feed { flex: 1; overflow-y: auto; padding: 10px 0; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; }
+.log-empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text3); font-family: inherit; flex-direction: column; gap: 8px; }
+.log-empty-icon { font-size: 32px; opacity: .3; }
+.log-entry { display: flex; align-items: baseline; gap: 10px; padding: 2px 20px; border-left: 2px solid transparent; transition: background var(--transition); }
+.log-entry:hover { background: var(--bg3); }
+.log-ts   { color: var(--text3); font-size: 11px; flex-shrink: 0; }
+.log-page-header { border-left-color: var(--cyan); background: var(--cyan-dim); padding: 6px 20px; margin: 4px 0; }
+.log-page-header .log-msg { color: var(--cyan); font-weight: 600; }
+.log-saved   { border-left-color: var(--green); }
+.log-saved   .log-msg { color: var(--green); }
+.log-skipped .log-msg { color: var(--text3); }
+.log-retry   .log-msg { color: var(--yellow); }
+.log-failed  .log-msg { color: var(--red); }
+.log-error   .log-msg { color: var(--red); }
+.log-warning .log-msg { color: var(--yellow); }
+.log-dim     .log-msg { color: var(--text3); }
+.log-info    .log-msg { color: var(--text); }
+.log-icon { flex-shrink: 0; width: 16px; text-align: center; }
+.log-msg  { flex: 1; word-break: break-all; }
+.log-size { color: var(--text3); font-size: 11px; flex-shrink: 0; }
+
+/* ── Download ribbon ───────────────────────────────────────────────────── */
+.download-ribbon {
+  background: linear-gradient(135deg, var(--green-dim), rgba(34,197,94,.04));
+  border-top: 1px solid rgba(34,197,94,.25);
+  padding: 14px 20px;
+  display: flex; align-items: center; gap: 14px; flex-shrink: 0;
+}
+.download-ribbon .info { flex: 1; }
+.download-ribbon .info strong { display: block; font-size: 13px; color: var(--green); margin-bottom: 2px; }
+.download-ribbon .info span   { font-size: 12px; color: var(--text3); }
+
+/* ── Toast (top-right) ─────────────────────────────────────────────────── */
+#toasts {
+  position: fixed;
+  top: 68px;        /* just below the header */
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 1000;
+  pointer-events: none;
+}
+.toast {
+  padding: 11px 16px; border-radius: var(--radius-sm);
+  font-size: 13px; color: var(--text);
+  background: var(--bg2); border: 1px solid var(--border2);
+  box-shadow: 0 8px 24px var(--shadow);
+  display: flex; align-items: center; gap: 10px;
+  animation: toastIn .25s ease; max-width: 380px;
+  pointer-events: auto;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+@keyframes toastIn {
+  from { transform: translateX(24px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+.toast-icon {
+  width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; flex-shrink: 0; font-weight: 700;
+}
+.toast.success .toast-icon { background: var(--green-dim);  color: var(--green); }
+.toast.error   .toast-icon { background: var(--red-dim);    color: var(--red);   }
+.toast.info    .toast-icon { background: var(--cyan-dim);   color: var(--cyan);  }
+.toast.warning .toast-icon { background: var(--yellow-dim); color: var(--yellow);}
+.toast.success { border-color: rgba(34,197,94,.4); }
+.toast.error   { border-color: rgba(239,68,68,.4); }
+.toast.info    { border-color: rgba(34,211,238,.4); }
+.toast.warning { border-color: rgba(234,179,8,.4); }
+.toast-body { flex: 1; }
+.toast-title { font-weight: 600; font-size: 13px; }
+.toast-msg   { font-size: 12px; color: var(--text2); margin-top: 1px; }
+.toast-close {
+  flex-shrink: 0; background: none; border: none; color: var(--text3);
+  cursor: pointer; font-size: 16px; line-height: 1; padding: 0 2px;
+  transition: color var(--transition);
+}
+.toast-close:hover { color: var(--text); }
+
+@media (max-width: 768px) {
+  .body { flex-direction: column; }
+  .sidebar { width: 100%; min-width: unset; border-right: none; border-bottom: 1px solid var(--border); max-height: 50vh; }
+  .stats-bar { grid-template-columns: repeat(2, 1fr); }
+  #toasts { top: 68px; right: 10px; left: 10px; }
+  .toast { max-width: 100%; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🖼</div>
+    Image Downloader <span>/ Web</span>
+  </div>
+  <div class="header-right">
+    <button class="theme-toggle" id="themeToggle" title="Toggle light/dark mode">☀️</button>
+    <div class="conn-pill connecting" id="connPill">
+      <div class="conn-dot"></div>
+      <span id="connLabel">Connecting…</span>
+    </div>
+  </div>
+</header>
+
+<div class="body">
+
+<!-- ── Sidebar ───────────────────────────────────────────────────────────── -->
+<aside class="sidebar">
+  <div class="sidebar-inner">
+
+    <div>
+      <div class="section-title">Target</div>
+      <div class="field" style="margin-top:8px">
+        <label for="startUrl">Website URL</label>
+        <input type="url" id="startUrl" placeholder="https://example.com">
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Output</div>
+      <div class="field" style="margin-top:8px">
+        <label for="folderName">Job name (ZIP filename)</label>
+        <input type="text" id="folderName" placeholder="e.g. car-photos">
+        <span style="font-size:11px;color:var(--text3)">Images are grouped inside the ZIP by page title.</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Crawl Settings</div>
+      <div style="margin-top:8px;display:flex;flex-direction:column;gap:10px">
+        <div class="field">
+          <label for="maxDepth">Crawl Depth</label>
+          <select id="maxDepth">
+            <option value="0">0 — Start page only</option>
+            <option value="1">1 — One level deep</option>
+            <option value="2" selected>2 — Two levels (default)</option>
+            <option value="3">3 — Three levels</option>
+          </select>
+        </div>
+        <div class="row-2">
+          <div class="field">
+            <label for="delayMs">Delay (ms)</label>
+            <input type="number" id="delayMs" value="1200" min="200" max="10000" step="100">
+          </div>
+          <div class="field">
+            <label for="concurrency">Concurrent</label>
+            <input type="number" id="concurrency" value="4" min="1" max="16">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Image Types</div>
+      <div class="ext-group" style="margin-top:8px">
+        <label class="ext-chip"><input type="checkbox" value=".jpg"  checked> .jpg</label>
+        <label class="ext-chip"><input type="checkbox" value=".jpeg" checked> .jpeg</label>
+        <label class="ext-chip"><input type="checkbox" value=".png"  checked> .png</label>
+        <label class="ext-chip"><input type="checkbox" value=".webp" checked> .webp</label>
+        <label class="ext-chip"><input type="checkbox" value=".gif"  checked> .gif</label>
+        <label class="ext-chip"><input type="checkbox" value=".avif" checked> .avif</label>
+        <label class="ext-chip"><input type="checkbox" value=".bmp"> .bmp</label>
+        <label class="ext-chip"><input type="checkbox" value=".svg"> .svg</label>
+      </div>
+    </div>
+
+    <details>
+      <summary>Advanced options</summary>
+      <div class="details-body">
+        <div class="row-2">
+          <div class="field">
+            <label for="maxRetries">Max Retries</label>
+            <input type="number" id="maxRetries" value="3" min="1" max="10">
+          </div>
+          <div class="field">
+            <label for="minSize">Min Size (KB)</label>
+            <input type="number" id="minSize" value="2" min="0" max="500">
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <div style="flex:1"></div>
+
+    <div>
+      <div class="action-row">
+        <button class="btn btn-primary" id="startBtn">▶ Start</button>
+        <button class="btn btn-danger"  id="cancelBtn" disabled>■ Stop</button>
+      </div>
+      <div style="margin-top:8px">
+        <button class="btn btn-ghost" id="clearBtn" style="width:100%;font-size:12px;padding:7px">
+          Clear log
+        </button>
+      </div>
+    </div>
+
+  </div>
+</aside>
+
+<!-- ── Main panel ─────────────────────────────────────────────────────────── -->
+<main class="main">
+
+  <div class="stats-bar">
+    <div class="stat-card stat-pages">
+      <div class="stat-value" id="statPages">0</div>
+      <div class="stat-label">Pages crawled</div>
+    </div>
+    <div class="stat-card stat-saved">
+      <div class="stat-value" id="statSaved">0</div>
+      <div class="stat-label">Images saved</div>
+    </div>
+    <div class="stat-card stat-skipped">
+      <div class="stat-value" id="statSkipped">0</div>
+      <div class="stat-label">Already existed</div>
+    </div>
+    <div class="stat-card stat-failed" id="statFailedCard">
+      <div class="stat-value" id="statFailed">0</div>
+      <div class="stat-label">Failed</div>
+    </div>
+  </div>
+
+  <div class="job-bar" id="jobBar">
+    <span style="color:var(--text3);font-size:12px">No active job — configure and press Start</span>
+  </div>
+
+  <div class="log-wrap">
+    <div class="log-header">
+      <span class="log-title">📋 LIVE LOG</span>
+      <div class="log-actions">
+        <button class="btn btn-ghost" id="autoScrollBtn"
+          style="font-size:11px;padding:4px 10px;opacity:.7"
+          title="Toggle auto-scroll">↓ Auto-scroll ON</button>
+      </div>
+    </div>
+    <div class="log-feed" id="logFeed">
+      <div class="log-empty">
+        <div class="log-empty-icon">📂</div>
+        <div>Enter a URL and press <strong>Start</strong> to begin</div>
+      </div>
+    </div>
+    <div class="download-ribbon" id="downloadRibbon" style="display:none">
+      <div class="info">
+        <strong id="downloadTitle">Download ready</strong>
+        <span id="downloadSubtitle"></span>
+      </div>
+      <button class="btn btn-download" id="downloadBtn">⬇ Download ZIP</button>
+    </div>
+  </div>
+
+</main>
+</div>
+</div>
+
+<!-- Toast container (top-right) -->
+<div id="toasts"></div>
+
+<script>
+// ── Theme Toggle ───────────────────────────────────────────────────────────
+const html = document.documentElement;
+const themeToggle = document.getElementById('themeToggle');
+
+// Persist preference
+const savedTheme = localStorage.getItem('imgdl-theme') || 'dark';
+html.setAttribute('data-theme', savedTheme);
+themeToggle.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+
+themeToggle.addEventListener('click', () => {
+  const current = html.getAttribute('data-theme');
+  const next    = current === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', next);
+  themeToggle.textContent = next === 'dark' ? '☀️' : '🌙';
+  localStorage.setItem('imgdl-theme', next);
+});
+
+// ── State ──────────────────────────────────────────────────────────────────
+let connection     = null;
+let currentJobId   = null;
+let currentZipName = null;
+let isRunning      = false;
+let autoScroll     = true;
+const MAX_LOG_ENTRIES = 1200;
+
+// Local counters — incremented immediately on each granular event so the
+// stats bar updates in real time without waiting for server statsUpdate ticks.
+const counts = { pages: 0, saved: 0, skipped: 0, failed: 0 };
+
+function resetCounts() {
+  counts.pages = counts.saved = counts.skipped = counts.failed = 0;
+}
+
+// Increment a local counter and push it straight to the DOM.
+function inc(field) {
+  counts[field]++;
+  const idMap = { pages: 'statPages', saved: 'statSaved', skipped: 'statSkipped', failed: 'statFailed' };
+  bumpStat(idMap[field], counts[field]);
+  if (field === 'failed') $('statFailedCard').classList.toggle('has-failures', counts.failed > 0);
+}
+
+// statsUpdate from the server is the authoritative source; reconcile if
+// the server value is ahead (e.g. after reconnect or a race).
+function reconcile({ Pages, Saved, Skipped, Failed }) {
+  if ((Pages   ?? 0) > counts.pages)   { counts.pages   = Pages   ?? 0; bumpStat('statPages',   counts.pages);   }
+  if ((Saved   ?? 0) > counts.saved)   { counts.saved   = Saved   ?? 0; bumpStat('statSaved',   counts.saved);   }
+  if ((Skipped ?? 0) > counts.skipped) { counts.skipped = Skipped ?? 0; bumpStat('statSkipped', counts.skipped); }
+  if ((Failed  ?? 0) > counts.failed)  { counts.failed  = Failed  ?? 0; bumpStat('statFailed',  counts.failed);
+    $('statFailedCard').classList.toggle('has-failures', counts.failed > 0);
+  }
+}
+
+// ── Elements ───────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const logFeed        = $('logFeed');
+const startBtn       = $('startBtn');
+const cancelBtn      = $('cancelBtn');
+const clearBtn       = $('clearBtn');
+const autoScrollBtn  = $('autoScrollBtn');
+const connPill       = $('connPill');
+const connLabel      = $('connLabel');
+const jobBar         = $('jobBar');
+const downloadRibbon = $('downloadRibbon');
+const downloadBtn    = $('downloadBtn');
+
+// ── Auto-scroll toggle ─────────────────────────────────────────────────────
+autoScrollBtn.addEventListener('click', () => {
+  autoScroll = !autoScroll;
+  autoScrollBtn.textContent = autoScroll ? '↓ Auto-scroll ON' : '↓ Auto-scroll OFF';
+  autoScrollBtn.style.opacity = autoScroll ? '.7' : '1';
+});
+
+// ── SignalR connection ─────────────────────────────────────────────────────
+function buildConnection() {
+  connection = new signalR.HubConnectionBuilder()
+    .withUrl('/hubs/download')
+    .withAutomaticReconnect([1000, 2000, 5000, 10000])
+    .configureLogging(signalR.LogLevel.Warning)
+    .build();
+
+  connection.onreconnecting(() => setConnState('connecting', 'Reconnecting…'));
+  connection.onreconnected(() => setConnState('connected', 'Connected'));
+  connection.onclose(() => {
+    setConnState('disconnected', 'Disconnected');
+    if (isRunning) setRunning(false);
+  });
+
+  // ── Hub events ─────────────────────────────────────────────────────────────
+
+  connection.on('jobStarted', jobId => {
+    currentJobId = jobId;
+    isRunning = true;
+    setJobBar('running', jobId, $('startUrl').value);
+    appendLog('info', '🚀', `Job started — ID: ${jobId.slice(0, 8)}…`);
+    toast('Job Started', `ID: ${jobId.slice(0, 8)}…`, 'info');
+  });
+
+  connection.on('pageVisited', ({ pageNum, depth, url }) => {
+    inc('pages');                          // ← real-time counter
+    const entry = document.createElement('div');
+    entry.className = 'log-entry log-page-header';
+    entry.innerHTML = `
+      <span class="log-ts">${now()}</span>
+      <span class="log-icon">📄</span>
+      <span class="log-msg">[Page ${pageNum}  Depth ${depth}]  ${escHtml(url)}</span>`;
+    addEntry(entry);
+  });
+
+  // Server sends { filename, bytes, size } — use `size` (pre-formatted string)
+  connection.on('imageSaved', ({ filename, size }) => {
+    inc('saved');                          // ← real-time counter
+    appendLog('saved', '✓', filename, size);
+  });
+
+  connection.on('imageSkipped', ({ filename }) => {
+    inc('skipped');                        // ← real-time counter
+    appendLog('skipped', '↷', `${filename}  (already exists)`);
+  });
+
+  connection.on('imageRetry', ({ filename, attempt, max }) => {
+    appendLog('retry', '↻', `Retry ${attempt}/${max} — ${filename}`);
+  });
+
+  connection.on('imageFailed', ({ filename, reason }) => {
+    inc('failed');                         // ← real-time counter
+    appendLog('failed', '✗', `${filename}  [${reason}]`);
+  });
+
+  connection.on('log', ({ level, text }) => {
+    appendLog(level, levelIcon(level), text);
+    // Surface warnings and errors as toasts too
+    if (level === 'error')   toast('Error', text, 'error');
+    if (level === 'warning') toast('Warning', text, 'warning');
+  });
+
+  // Server sends PascalCase { Pages, Saved, Skipped, Failed }.
+  // reconcile() only moves counters forward — never backward — so local
+  // increments from granular events are never overwritten by a stale tick.
+  connection.on('statsUpdate', ({ Pages, Saved, Skipped, Failed }) => {
+    reconcile({ Pages, Saved, Skipped, Failed });
+  });
+
+  // Server sends `zipName`
+  connection.on('jobFinished', ({ jobId, status, saved, skipped, failed, canDownload, zipName }) => {
+    isRunning      = false;
+    currentJobId   = jobId;
+    currentZipName = zipName || `images-${jobId.slice(0, 8)}.zip`;
+    setJobBar(status === 'completed' ? 'done' : status, jobId, $('startUrl').value);
+    setRunning(false);
+
+    appendLog('info', '—', `Job ${status}. Saved: ${saved}  Skipped: ${skipped}  Failed: ${failed}`);
+
+    if (canDownload) {
+      $('downloadTitle').textContent   = `${saved} image${saved !== 1 ? 's' : ''} ready — ${currentZipName}`;
+      $('downloadSubtitle').textContent = `Job ${jobId.slice(0, 8)} · ${status}`;
+      downloadRibbon.style.display = 'flex';
+      toast('Download Ready', `${saved} images saved. Click Download ZIP.`, 'success');
+    } else {
+      toast(
+        status === 'cancelled' ? 'Cancelled' : 'Job Finished',
+        status === 'cancelled' ? 'Job was cancelled.' : `Status: ${status} — no images saved.`,
+        status === 'cancelled' ? 'warning' : 'error'
+      );
+    }
+  });
+}
+
+async function startConnection() {
+  setConnState('connecting', 'Connecting…');
+  try {
+    await connection.start();
+    setConnState('connected', 'Connected');
+  } catch {
+    setConnState('disconnected', 'Failed — retrying');
+    setTimeout(startConnection, 3000);
+  }
+}
+
+// ── Start job ──────────────────────────────────────────────────────────────
+startBtn.addEventListener('click', async () => {
+  const url = $('startUrl').value.trim();
+  if (!url)                    { toast('Missing URL', 'Please enter a URL.', 'error'); $('startUrl').focus(); return; }
+  if (!url.startsWith('http')) { toast('Invalid URL', 'URL must start with http:// or https://', 'error'); return; }
+  if (connection.state !== signalR.HubConnectionState.Connected) {
+    toast('Disconnected', 'Not connected to server.', 'error'); return;
+  }
+
+  const exts = [...document.querySelectorAll('.ext-group input:checked')].map(cb => cb.value);
+  if (exts.length === 0) { toast('No Image Types', 'Select at least one image type.', 'error'); return; }
+
+  const request = {
+    Url:                    url,
+    FolderName:             $('folderName').value.trim() || null,
+    MaxDepth:               parseInt($('maxDepth').value),
+    RequestDelayMs:         parseInt($('delayMs').value),
+    MaxConcurrentDownloads: parseInt($('concurrency').value),
+    MaxRetries:             parseInt($('maxRetries').value),
+    AllowedExtensions:      exts,
+    MinFileSizeBytes:       parseInt($('minSize').value) * 1024
+  };
+
+  // Reset UI for new job
+  downloadRibbon.style.display = 'none';
+  currentJobId   = null;
+  currentZipName = null;
+  resetCounts();
+  resetStats();
+  clearLog(false);
+  setRunning(true);
+
+  try {
+    await connection.invoke('StartJob', request);
+  } catch (e) {
+    toast('Start Failed', e.message, 'error');
+    setRunning(false);
+  }
+});
+
+// ── Cancel job ─────────────────────────────────────────────────────────────
+cancelBtn.addEventListener('click', async () => {
+  if (!currentJobId) return;
+  try {
+    await connection.invoke('CancelJob', currentJobId);
+    appendLog('warning', '!', 'Cancellation requested — finishing current download…');
+    toast('Cancelling', 'Finishing current download…', 'warning');
+  } catch (e) {
+    toast('Cancel Failed', e.message, 'error');
+  }
+});
+
+clearBtn.addEventListener('click', () => clearLog(true));
+
+// ── Download ZIP ───────────────────────────────────────────────────────────
+downloadBtn.addEventListener('click', async () => {
+  if (!currentJobId) return;
+
+  downloadBtn.disabled    = true;
+  downloadBtn.textContent = '⏳ Downloading…';
+  toast('Download Started', 'Server will clean up files once complete.', 'info');
+
+  try {
+    const res = await fetch(`/api/jobs/${currentJobId}/zip`);
+    if (!res.ok) {
+      toast('Download Failed', 'Please try again.', 'error');
+      downloadBtn.disabled    = false;
+      downloadBtn.textContent = '⬇ Download ZIP';
+      return;
+    }
+
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = currentZipName || `images-${currentJobId.slice(0, 8)}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast('Download Complete', 'Server storage cleared for your job.', 'success');
+    appendLog('info', '🗑', 'Server cleaned up your job folder after successful download.');
+    downloadRibbon.style.display = 'none';
+    currentJobId   = null;
+    currentZipName = null;
+
+  } catch (e) {
+    toast('Download Error', e.message, 'error');
+    downloadBtn.disabled    = false;
+    downloadBtn.textContent = '⬇ Download ZIP';
+  }
+});
+
+// ── UI helpers ─────────────────────────────────────────────────────────────
+function setConnState(state, label) {
+  connPill.className    = `conn-pill ${state}`;
+  connLabel.textContent = label;
+}
+
+function setRunning(running) {
+  isRunning          = running;
+  startBtn.disabled  = running;
+  cancelBtn.disabled = !running;
+  startBtn.innerHTML = running
+    ? '<span class="spinner"></span> Running…'
+    : '▶ Start';
+}
+
+function setJobBar(status, jobId, url) {
+  const badgeMap = {
+    running:   ['badge-running',   '⟳ Running'],
+    done:      ['badge-done',      '✓ Completed'],
+    completed: ['badge-done',      '✓ Completed'],
+    cancelled: ['badge-cancelled', '■ Cancelled'],
+    failed:    ['badge-failed',    '✗ Failed'],
+  };
+  const [cls, label] = badgeMap[status] ?? ['badge-running', status];
+  jobBar.innerHTML = `
+    <span class="job-badge ${cls}">${label}</span>
+    <span class="job-url" title="${escHtml(url)}">${escHtml(url)}</span>
+    <span style="color:var(--text3);font-size:11px">ID: ${jobId.slice(0, 8)}</span>`;
+}
+
+function resetStats() {
+  ['statPages', 'statSaved', 'statSkipped', 'statFailed'].forEach(id => {
+    $(id).textContent = '0';
+  });
+  $('statFailedCard').classList.remove('has-failures');
+}
+
+function bumpStat(id, value) {
+  const el = $(id);
+  const v  = value ?? 0;
+  if (el.textContent !== String(v)) {
+    el.textContent = v;
+    el.classList.remove('bump');
+    void el.offsetWidth;
+    el.classList.add('bump');
+  }
+}
+
+function clearLog(showEmpty) {
+  logFeed.innerHTML = '';
+  if (showEmpty) {
+    logFeed.innerHTML = `<div class="log-empty">
+      <div class="log-empty-icon">📂</div>
+      <div>Log cleared. Press <strong>Start</strong> to begin.</div>
+    </div>`;
+  }
+}
+
+// ── Log helpers ────────────────────────────────────────────────────────────
+function appendLog(type, icon, msg, extra) {
+  while (logFeed.children.length > MAX_LOG_ENTRIES)
+    logFeed.removeChild(logFeed.firstChild);
+
+  const empty = logFeed.querySelector('.log-empty');
+  if (empty) logFeed.removeChild(empty);
+
+  const entry = document.createElement('div');
+  entry.className = `log-entry log-${type}`;
+  entry.innerHTML = `
+    <span class="log-ts">${now()}</span>
+    <span class="log-icon">${icon}</span>
+    <span class="log-msg">${escHtml(msg)}</span>
+    ${extra ? `<span class="log-size">${escHtml(extra)}</span>` : ''}`;
+  addEntry(entry);
+}
+
+function addEntry(el) {
+  logFeed.appendChild(el);
+  if (autoScroll) logFeed.scrollTop = logFeed.scrollHeight;
+}
+
+function levelIcon(level) {
+  return { info: '›', dim: '·', warning: '!', error: '✗' }[level] ?? '·';
+}
+
+function now() {
+  return new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ── Toast (top-right, with title + message) ───────────────────────────────
+function toast(title, msg, type = 'info') {
+  const icons = { success: '✓', error: '✗', info: 'ℹ', warning: '!' };
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.innerHTML = `
+    <div class="toast-icon">${icons[type] ?? '·'}</div>
+    <div class="toast-body">
+      <div class="toast-title">${escHtml(title)}</div>
+      ${msg ? `<div class="toast-msg">${escHtml(msg)}</div>` : ''}
+    </div>
+    <button class="toast-close" aria-label="Dismiss">×</button>`;
+
+  t.querySelector('.toast-close').addEventListener('click', () => t.remove());
+  $('toasts').appendChild(t);
+
+  // Auto-dismiss
+  setTimeout(() => {
+    t.style.transition = 'opacity .35s, transform .35s';
+    t.style.opacity    = '0';
+    t.style.transform  = 'translateX(24px)';
+    setTimeout(() => t.remove(), 360);
+  }, 4000);
+}
+
+// ── URL → auto-fill folder name hint ──────────────────────────────────────
+$('startUrl').addEventListener('blur', () => {
+  if ($('folderName').value) return;
+  try {
+    const host = new URL($('startUrl').value).hostname.replace(/^www\./, '');
+    $('folderName').placeholder = host || 'my-download';
+  } catch {}
+});
+
+// ── Init ───────────────────────────────────────────────────────────────────
+buildConnection();
+startConnection();
+</script>
+</body>
+</html>
